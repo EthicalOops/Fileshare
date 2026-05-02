@@ -180,8 +180,8 @@ app.post('/send-email', async (req, res) => {
 
     res.json({ success: true, message: `Email sent to ${to}` });
   } catch (err) {
-    console.error('Email error:', err.message);
-    res.status(500).json({ error: 'Failed to send email. Check your SMTP settings.' });
+    console.error('Email error full:', JSON.stringify({ message: err.message, code: err.code, response: err.response }));
+    res.status(500).json({ error: err.message });
   }
 });
 
