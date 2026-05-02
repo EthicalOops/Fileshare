@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FileDrop — Share Files Instantly</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --border: #222222;
+      --accent: #e8ff47;
+      --accent2: #ff6b35;
+      --text: #f0f0f0;
+      --muted: #555555;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Syne', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow-x: hidden;
+    }
+
+    /* noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 1.3rem;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .header-tag {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 48px;
+    }
+
+    .hero {
+      text-align: center;
+      max-width: 600px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 7vw, 4.5rem);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      margin-bottom: 18px;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .hero-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    /* ── Drop Zone ── */
+    .drop-card {
+      width: 100%;
+      max-width: 560px;
+      animation: fadeUp 0.6s 0.15s ease both;
+    }
+
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 4px;
+      padding: 56px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      background: var(--surface);
+    }
+
+    #drop-zone:hover,
+    #drop-zone.dragover {
+      border-color: var(--accent);
+      background: #141400;
+    }
+
+    #drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      display: block;
+      transition: transform 0.2s;
+    }
+
+    #drop-zone:hover .drop-icon { transform: translateY(-4px); }
+
+    .drop-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .drop-sub {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* selected file preview */
+    .file-preview {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      margin-top: 20px;
+      padding: 16px;
+      background: #0f0f00;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+    }
+
+    .file-preview.visible { display: flex; }
+
+    .file-icon {
+      font-size: 1.8rem;
+      flex-shrink: 0;
+    }
+
+    .file-meta { flex: 1; min-width: 0; }
+
+    .file-name {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--accent);
+    }
+
+    .file-size {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* Upload button */
+    #upload-btn {
+      display: none;
+      width: 100%;
+      margin-top: 14px;
+      padding: 16px;
+      background: var(--accent);
+      color: #0a0a0a;
+      border: none;
+      border-radius: 4px;
+      font-family: var(--sans);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    #upload-btn:hover { background: #d4eb2e; }
+    #upload-btn:active { transform: scale(0.99); }
+    #upload-btn.visible { display: block; }
+    #upload-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+    /* ── Progress ── */
+    #progress-wrap {
+      display: none;
+      margin-top: 14px;
+    }
+
+    #progress-wrap.visible { display: block; }
+
+    .progress-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .progress-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* ── Success card ── */
+    #success-card {
+      display: none;
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 32px;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    #success-card.visible { display: block; }
+
+    .success-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .success-badge {
+      background: var(--accent);
+      color: #0a0a0a;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 4px 10px;
+      border-radius: 2px;
+    }
+
+    .success-title {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .link-box {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    #share-link {
+      flex: 1;
+      background: #080808;
+      border: none;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--accent);
+      outline: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #copy-btn {
+      padding: 14px 20px;
+      background: var(--border);
+      border: none;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    #copy-btn:hover { background: var(--accent); color: #0a0a0a; }
+    #copy-btn.copied { background: #2a4a00; color: #88ff00; }
+
+    .success-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .meta-item {
+      background: #080808;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 14px;
+    }
+
+    .meta-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+
+    .upload-another {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .upload-another:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Email section ── */
+    .email-section {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .email-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .email-row {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .email-row:focus-within { border-color: var(--accent); }
+
+    #email-input {
+      flex: 1;
+      background: #080808;
+      border: none;
+      padding: 13px 16px;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text);
+      outline: none;
+    }
+
+    #email-input::placeholder { color: var(--muted); }
+
+    #send-email-btn {
+      padding: 13px 18px;
+      background: var(--border);
+      border: none;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    #send-email-btn:hover { background: var(--accent); color: #0a0a0a; }
+    #send-email-btn:disabled { background: var(--muted); cursor: not-allowed; color: #333; }
+    #send-email-btn.sent { background: #2a4a00; color: #88ff00; }
+
+    .email-status {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      margin-top: 8px;
+      min-height: 1rem;
+      display: none;
+    }
+
+    .email-status.success { color: #88ff00; display: block; }
+    .email-status.error { color: #ff6b35; display: block; }
+
+    /* ── Footer ── */
+    footer {
+      padding: 20px 40px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    .limit-tag {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      FileDropp
+    </div>
+    <span class="header-tag">No login · No tracking</span>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div class="hero-label">// instant file sharing</div>
+      <h1>Drop it.<br><span>Share it.</span></h1>
+      <p class="hero-sub">Upload any file and get a shareable link in seconds.<br>No account needed.</p>
+    </div>
+
+    <div class="drop-card">
+      <div id="drop-zone">
+        <input type="file" id="file-input" />
+        <span class="drop-icon">📦</span>
+        <div class="drop-title">Drop your file here</div>
+        <div class="drop-sub">or click to browse · max 100 MB</div>
+      </div>
+
+      <div class="file-preview" id="file-preview">
+        <div class="file-icon" id="file-icon">📄</div>
+        <div class="file-meta">
+          <div class="file-name" id="file-name">filename.txt</div>
+          <div class="file-size" id="file-size">0 KB</div>
+        </div>
+      </div>
+
+      <button id="upload-btn">Upload &amp; Generate Link</button>
+
+      <div id="progress-wrap">
+        <div class="progress-label">
+          <span>Uploading…</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="success-card">
+      <div class="success-header">
+        <span class="success-badge">UPLOADED</span>
+        <span class="success-title">Your file is ready to share</span>
+      </div>
+
+      <div class="link-box">
+        <input type="text" id="share-link" readonly />
+        <button id="copy-btn" onclick="copyLink()">COPY</button>
+      </div>
+
+      <div class="success-meta">
+        <div class="meta-item">
+          <div class="meta-label">File name</div>
+          <div class="meta-value" id="meta-name">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Size</div>
+          <div class="meta-value" id="meta-size">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Type</div>
+          <div class="meta-value" id="meta-type">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Uploaded</div>
+          <div class="meta-value" id="meta-date">—</div>
+        </div>
+      </div>
+
+      <button class="upload-another" onclick="resetForm()">↑ Upload another file</button>
+
+      <div class="email-section">
+        <div class="email-label">✉ Send link via email</div>
+        <div class="email-row">
+          <input type="email" id="email-input" placeholder="recipient@example.com" />
+          <button id="send-email-btn" onclick="sendEmail()">SEND</button>
+        </div>
+        <div class="email-status" id="email-status"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span class="footer-text">FileDropp · runs on your own server</span>
+    <span class="limit-tag">MAX 100 MB</span>
+  </footer>
+</div>
+
+<script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const filePreview = document.getElementById('file-preview');
+  const uploadBtn = document.getElementById('upload-btn');
+  const progressWrap = document.getElementById('progress-wrap');
+  const successCard = document.getElementById('success-card');
+
+  let selectedFile = null;
+  let currentFileId = null;
+
+  const ICONS = {
+    image: '🖼️', video: '🎬', audio: '🎵', pdf: '📋',
+    zip: '📦', text: '📄', default: '📄'
+  };
+
+  function getIcon(type, name) {
+    if (type.startsWith('image')) return ICONS.image;
+    if (type.startsWith('video')) return ICONS.video;
+    if (type.startsWith('audio')) return ICONS.audio;
+    if (type === 'application/pdf') return ICONS.pdf;
+    if (type.includes('zip') || type.includes('compressed') || name.endsWith('.zip') || name.endsWith('.rar')) return ICONS.zip;
+    if (type.startsWith('text')) return ICONS.text;
+    return ICONS.default;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function selectFile(file) {
+    selectedFile = file;
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = formatBytes(file.size);
+    document.getElementById('file-icon').textContent = getIcon(file.type, file.name);
+    filePreview.classList.add('visible');
+    uploadBtn.classList.add('visible');
+  }
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) selectFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading…';
+    progressWrap.classList.add('visible');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload');
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-pct').textContent = pct + '%';
+      }
+    };
+
+    xhr.onload = () => {
+      const data = JSON.parse(xhr.responseText);
+      if (data.success) {
+        showSuccess(data);
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'));
+        resetForm();
+      }
+    };
+
+    xhr.onerror = () => { alert('Upload failed. Is the server running?'); resetForm(); };
+    xhr.send(formData);
+  });
+
+  function showSuccess(data) {
+    const fullUrl = window.location.origin + data.shareUrl;
+    currentFileId = data.id;
+    document.getElementById('share-link').value = fullUrl;
+    document.getElementById('meta-name').textContent = data.file.originalName;
+    document.getElementById('meta-size').textContent = data.file.sizeFormatted;
+    document.getElementById('meta-type').textContent = data.file.mimetype.split('/')[1].toUpperCase();
+    document.getElementById('meta-date').textContent = new Date(data.file.uploadedAt).toLocaleTimeString();
+
+    document.querySelector('.drop-card').style.display = 'none';
+    successCard.classList.add('visible');
+  }
+
+  function copyLink() {
+    const link = document.getElementById('share-link').value;
+    navigator.clipboard.writeText(link).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = '✓ COPIED';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  function resetForm() {
+    selectedFile = null;
+    currentFileId = null;
+    fileInput.value = '';
+    document.getElementById('email-input').value = '';
+    document.getElementById('email-status').className = 'email-status';
+    document.getElementById('send-email-btn').textContent = 'SEND';
+    document.getElementById('send-email-btn').className = '';
+    document.getElementById('send-email-btn').disabled = false;
+    filePreview.classList.remove('visible');
+    uploadBtn.classList.remove('visible');
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Upload & Generate Link';
+    progressWrap.classList.remove('visible');
+    document.getElementById('progress-fill').style.width = '0%';
+    successCard.classList.remove('visible');
+    document.querySelector('.drop-card').style.display = 'block';
+  }
+  async function sendEmail() {
+    const emailInput = document.getElementById('email-input');
+    const sendBtn = document.getElementById('send-email-btn');
+    const statusEl = document.getElementById('email-status');
+    const to = emailInput.value.trim();
+
+    if (!to) { emailInput.focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      statusEl.textContent = '✗ Please enter a valid email address.';
+      statusEl.className = 'email-status error';
+      return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'SENDING…';
+    statusEl.className = 'email-status';
+
+    try {
+      const res = await fetch('/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          fileId: currentFileId,
+          shareUrl: document.getElementById('share-link').value
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        sendBtn.textContent = '✓ SENT';
+        sendBtn.classList.add('sent');
+        statusEl.textContent = `✓ Email sent to ${to}`;
+        statusEl.className = 'email-status success';
+        emailInput.value = '';
+      } else {
+        throw new Error(data.error || 'Failed to send');
+      }
+    } catch (err) {
+      sendBtn.textContent = 'SEND';
+      sendBtn.disabled = false;
+      statusEl.textContent = '✗ ' + err.message;
+      statusEl.className = 'email-status error';
+    }
+  }
+
+  // Allow pressing Enter in the email field
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('email-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendEmail();
+    });
+  });
+
+</body>
+</html>
