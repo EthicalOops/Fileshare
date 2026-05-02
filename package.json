@@ -13,5 +13,6 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.7",
     "uuid": "^14.0.0"
+    "node-fetch": "^2.7.0"
   }
 }
