@@ -83,7 +83,8 @@ app.post('/send-email', async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Invalid email.' });
 
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'Email not configured. Add RESEND_API_KEY in Railway variables.' });
+console.log('API KEY CHECK:', apiKey ? 'FOUND: ' + apiKey.substring(0, 5) : 'NOT FOUND');
+if (!apiKey) return res.status(503).json({ error: 'Email not configured. Add RESEND_API_KEY in Railway variables.' });
 
   const file = fileStore[fileId];
   if (!file) return res.status(404).json({ error: 'File not found.' });
